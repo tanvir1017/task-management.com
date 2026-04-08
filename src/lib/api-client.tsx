@@ -525,7 +525,7 @@ export async function getAllUsers(
   if (query.page) params.set("page", String(query.page));
   if (query.limit) params.set("limit", String(query.limit));
 
-  const endpoint = `/auth/users${params.toString() ? `?${params.toString()}` : ""}`;
+  const endpoint = `/users${params.toString() ? `?${params.toString()}` : ""}`;
   const response = await apiClient.get<UserListResponse>(endpoint);
   if (!response.success || !response.data) {
     throw new Error(
@@ -533,6 +533,46 @@ export async function getAllUsers(
     );
   }
   return response.data;
+}
+
+export async function getUserById(id: number): Promise<User> {
+  const response = await apiClient.get<User>(`/users/${id}`);
+  if (!response.success || !response.data) {
+    throw new Error(response.error || response.message || "Failed to fetch user");
+  }
+  return response.data;
+}
+
+export async function updateUserProfile(
+  id: number,
+  body: {
+    fullName?: string;
+    email?: string;
+    username?: string;
+  },
+): Promise<User> {
+  const response = await apiClient.patch<User>(`/users/${id}`, body);
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.error || response.message || "Failed to update user profile",
+    );
+  }
+  return response.data;
+}
+
+export async function deleteUserAccount(id: number): Promise<{ message: string }> {
+  const response = await apiClient.delete<{ message: string }>(`/users/${id}`);
+  if (!response.success) {
+    throw new Error(
+      response.error || response.message || "Failed to delete user account",
+    );
+  }
+
+  return (
+    response.data ?? {
+      message: response.message || "User deleted successfully",
+    }
+  );
 }
 
 export async function getCurrentUser(): Promise<CurrentUserProfile> {
@@ -632,9 +672,6 @@ export async function deleteAuditLog(id: number): Promise<{ message: string }> {
 // }
 
 export async function getUsers(): Promise<User[]> {
-  const response = await apiClient.get<UserListResponse>("/auth/users");
-  if (!response.success || !response.data) {
-    throw new Error(response.error || response.message || "Failed to fetch users");
-  }
-  return response.data.result;
+  const response = await getAllUsers();
+  return response.result;
 }
