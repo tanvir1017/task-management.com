@@ -27,6 +27,8 @@ const ACTION_TYPES: AuditActionType[] = [
   "ASSIGN_TASK",
 ];
 
+type PlainObject = Record<string, unknown>;
+
 export default function AuditLogsTable() {
   const router = useRouter();
   const pathname = usePathname();
@@ -110,6 +112,71 @@ export default function AuditLogsTable() {
       .split("_")
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
+  };
+
+  const isPlainObject = (value: unknown): value is PlainObject => {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  };
+
+  const formatFieldLabel = (key: string) => {
+    return key
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "—";
+
+    if (typeof value === "string") {
+      if (value.includes("_") && value === value.toUpperCase()) {
+        return formatActionLabel(value);
+      }
+      return value;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      return value.length ? value.map((item) => formatValue(item)).join(", ") : "—";
+    }
+
+    if (isPlainObject(value)) {
+      return Object.keys(value).length ? JSON.stringify(value) : "—";
+    }
+
+    return String(value);
+  };
+
+  const getPayloadChanges = (payload: Record<string, unknown>) => {
+    const before = isPlainObject(payload.before) ? payload.before : {};
+    const after = isPlainObject(payload.after) ? payload.after : {};
+
+    const hasBeforeAfter = Object.keys(before).length > 0 || Object.keys(after).length > 0;
+
+    if (!hasBeforeAfter) {
+      return Object.entries(payload).map(([field, value]) => ({
+        field,
+        before: "—",
+        after: formatValue(value),
+        changed: true,
+      }));
+    }
+
+    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+
+    return keys.map((field) => {
+      const beforeValue = formatValue(before[field]);
+      const afterValue = formatValue(after[field]);
+      return {
+        field,
+        before: beforeValue,
+        after: afterValue,
+        changed: beforeValue !== afterValue,
+      };
+    });
   };
 
   const handleApplyFilters = (e: FormEvent) => {
@@ -433,9 +500,31 @@ export default function AuditLogsTable() {
                 <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
                   Payload
                 </p>
-                <pre className="max-h-64 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                  {JSON.stringify(selectedLog.payload, null, 2)}
-                </pre>
+                <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+                  {getPayloadChanges(selectedLog.payload).map((change) => (
+                    <div
+                      key={change.field}
+                      className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900"
+                    >
+                      <p className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        {formatFieldLabel(change.field)}
+                      </p>
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                        <div className="rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                          <span className="mr-1 font-medium">Before:</span>
+                          {change.before}
+                        </div>
+                        <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+                          {change.changed ? "→" : "="}
+                        </div>
+                        <div className="rounded-md bg-green-50 px-2.5 py-2 text-xs text-green-700 dark:bg-green-500/10 dark:text-green-300">
+                          <span className="mr-1 font-medium">After:</span>
+                          {change.after}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-end">

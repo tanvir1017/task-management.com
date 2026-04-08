@@ -12,11 +12,12 @@ import {
   createTask,
   deleteTask,
   getAllTasks,
+  getAuditLogsByTaskId,
   getUsers,
   updateTask,
   updateTaskStatus,
 } from "@/lib/api-client";
-import type { Task, TaskStatus } from "@/lib/types";
+import type { AuditLog, Task, TaskStatus } from "@/lib/types";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { Toaster, toast } from "sonner";
@@ -110,6 +111,17 @@ export default function BasicTableOne({
   );
 
   const { data: users } = useSWR(showCreateModal ? "users" : null, getUsers);
+  const {
+    data: taskAuditLogs,
+    isLoading: taskAuditLoading,
+    error: taskAuditError,
+  } = useSWR(
+    showHistorySidebar && selectedTask?.id
+      ? ["task-audits", selectedTask.id]
+      : null,
+    ([, taskId]) => getAuditLogsByTaskId(taskId as number, { page: 1, limit: 100 }),
+  );
+
   const tasks = taskData?.result ?? [];
   const totalPages = taskData?.meta?.totalPages ?? 1;
 
@@ -287,6 +299,73 @@ export default function BasicTableOne({
       .replace(" PM", " pm");
   };
 
+  const formatActionLabel = (value: string) => {
+    return value
+      .toLowerCase()
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
+  const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  };
+
+  const formatFieldLabel = (key: string) => {
+    return key
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatPayloadValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "string") {
+      if (value.includes("_") && value === value.toUpperCase()) {
+        return formatActionLabel(value);
+      }
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) return value.length ? value.map((item) => formatPayloadValue(item)).join(", ") : "—";
+    if (isPlainObject(value)) return Object.keys(value).length ? JSON.stringify(value) : "—";
+    return String(value);
+  };
+
+  const getPayloadChanges = (payload: Record<string, unknown>) => {
+    const before = isPlainObject(payload.before) ? payload.before : {};
+    const after = isPlainObject(payload.after) ? payload.after : {};
+    const hasBeforeAfter = Object.keys(before).length > 0 || Object.keys(after).length > 0;
+
+    if (!hasBeforeAfter) {
+      return Object.entries(payload).map(([field, value]) => ({
+        field,
+        before: "—",
+        after: formatPayloadValue(value),
+        changed: true,
+      }));
+    }
+
+    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+    return keys.map((field) => {
+      const beforeValue = formatPayloadValue(before[field]);
+      const afterValue = formatPayloadValue(after[field]);
+      return {
+        field,
+        before: beforeValue,
+        after: afterValue,
+        changed: beforeValue !== afterValue,
+      };
+    });
+  };
+
+  const getActionBadgeClass = (value: string) => {
+    if (value === "DELETE_TASK") return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400";
+    if (value === "CREATE_TASK") return "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400";
+    if (value === "UPDATE_STATUS") return "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400";
+    return "bg-gray-100 text-gray-700 dark:bg-gray-700/40 dark:text-gray-300";
+  };
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
       <Toaster position="top-center" richColors />
@@ -331,7 +410,7 @@ export default function BasicTableOne({
               value={statusFilter}
               onChange={(e) => {
                 setCurrentPage(1);
-                setStatusFilter(e.target.value);
+                setStatusFilter(getValidStatus(e.target.value));
               }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             >
@@ -674,19 +753,79 @@ export default function BasicTableOne({
         </div>
       </Modal>
 
-      {/* History Sidebar */}
-      <Modal isOpen={showHistorySidebar} onClose={closeModals} className="mx-4 max-w-2xl">
-        <div className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Task History</h2>
+      {/* History Modal */}
+      <Modal isOpen={showHistorySidebar} onClose={closeModals} className="mx-4 max-w-3xl">
+        <div className="max-h-[80vh] overflow-y-auto p-6">
+          <h2 className="text-lg font-semibold mb-2">Task History</h2>
           {selectedTask && (
-            <div>
-              <p>History logs for "{selectedTask.title}"</p>
-              {/* Placeholder for history list */}
-              <ul className="mt-4 space-y-2">
-                <li>2023-10-01: Task created</li>
-                <li>2023-10-02: Status changed to In Progress</li>
-                <li>2023-10-05: Assignee updated</li>
-              </ul>
+            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+              Audit logs for "{selectedTask.title}"
+            </p>
+          )}
+
+          {taskAuditLoading && (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`history-skeleton-${index}`} className="animate-pulse rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                  <div className="mb-3 h-4 w-36 rounded bg-gray-200 dark:bg-gray-700" />
+                  <div className="mb-2 h-3 w-56 rounded bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-3 w-full rounded bg-gray-100 dark:bg-gray-800" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {taskAuditError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Failed to load task audit history.
+            </p>
+          )}
+
+          {!taskAuditLoading && !taskAuditError && (taskAuditLogs?.length ?? 0) === 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No history found for this task.</p>
+          )}
+
+          {!taskAuditLoading && !taskAuditError && (taskAuditLogs?.length ?? 0) > 0 && (
+            <div className="space-y-3">
+              {(taskAuditLogs as AuditLog[]).map((log) => (
+                <div key={log.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getActionBadgeClass(log.actionType)}`}>
+                      {formatActionLabel(log.actionType)}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatReadableDateTime(log.createdAt)}
+                    </span>
+                  </div>
+
+                  <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    By {log.actor?.fullName || "Unknown User"} ({log.actor?.email || "No email"})
+                  </p>
+
+                  <div className="space-y-2">
+                    {getPayloadChanges(log.payload).map((change) => (
+                      <div key={`${log.id}-${change.field}`} className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                        <p className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                          {formatFieldLabel(change.field)}
+                        </p>
+                        <div className="grid gap-2 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                          <div className="rounded-md bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                            <span className="mr-1 font-medium">Before:</span>
+                            {change.before}
+                          </div>
+                          <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+                            {change.changed ? "→" : "="}
+                          </div>
+                          <div className="rounded-md bg-green-50 px-2.5 py-2 text-xs text-green-700 dark:bg-green-500/10 dark:text-green-300">
+                            <span className="mr-1 font-medium">After:</span>
+                            {change.after}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -1,4 +1,7 @@
 "use client";
+import { FileStackIcon } from "@/svg/file-stack";
+import { HistoryIcon } from "@/svg/history";
+import { UsersIcon } from "@/svg/users";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -7,11 +10,9 @@ import { useSidebar } from "../context/SidebarContext";
 import {
   BoxCubeIcon,
   ChevronDownIcon,
-  GridIcon,
   HorizontaLDots,
   PieChartIcon,
-  PlugInIcon,
-  TableIcon
+  PlugInIcon
 } from "../icons/index";
 
 type NavItem = {
@@ -23,54 +24,21 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
-    icon: <GridIcon />,
+    icon: <FileStackIcon />,
     name: "Tasks",
     path: "/",
   },
   {
-    icon: <TableIcon />,
+    icon: <HistoryIcon />,
     name: "Audit Logs",
     path: "/audit-logs",
   },
   {
-    icon: <BoxCubeIcon />,
+    icon: <UsersIcon />,
     name: "Users",
     path: "/users",
   },
-  {
-    icon: <PlugInIcon />,
-    name: "Profiles",
-    path: "/profiles",
-  },
-  // {
-  //   icon: <CalenderIcon />,
-  //   name: "Calendar",
-  //   path: "/calendar",
-  // },
-  // {
-  //   icon: <UserCircleIcon />,
-  //   name: "User Profile",
-  //   path: "/profile",
-  // },
-
-  // {
-  //   name: "Forms",
-  //   icon: <ListIcon />,
-  //   subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
-  // },
-  {
-    name: "Tables",
-    icon: <TableIcon />,
-    subItems: [{ name: "Basic Tables", path: "/basic-tables", pro: false }],
-  },
-  // {
-  //   name: "Pages",
-  //   icon: <PageIcon />,
-  //   subItems: [
-  //     { name: "Blank Page", path: "/blank", pro: false },
-  //     { name: "404 Error", path: "/error-404", pro: false },
-  //   ],
-  // },
+  
 ];
 
 const othersItems: NavItem[] = [
