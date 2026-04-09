@@ -129,8 +129,10 @@ export default function SignUpForm() {
                       className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
                     >
                       {showPassword ? (
+                        // @ts-ignore
                         <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
                       ) : (
+                        // @ts-ignore
                         <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
                       )}
                     </span>
