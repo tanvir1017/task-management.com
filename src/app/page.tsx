@@ -2,7 +2,7 @@
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { ProtectedRoute } from "@/components/protected-route";
-import BasicTableOne from "@/components/tables/BasicTableOne";
+import BasicTable from "@/components/tables/BasicTableOne";
 import Button from "@/components/ui/button/Button";
 import { useAuth } from "@/context/auth-context";
 import AdminLayout from "@/layout/AdminLayout";
@@ -26,7 +26,7 @@ export default function Dashboard() {
               )
             }
           >
-            <BasicTableOne
+            <BasicTable
               hideCreateButton
               showCreateModal={showCreateModal}
               onShowCreateModal={setShowCreateModal}

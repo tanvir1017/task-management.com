@@ -33,7 +33,7 @@ interface BasicTableOneProps {
   onShowCreateModal?: (show: boolean) => void;
 }
 
-export default function BasicTableOne({
+export default function BasicTable({
   hideCreateButton = false,
   showCreateModal: controlledShowCreateModal,
   onShowCreateModal,
